@@ -1,3 +1,35 @@
+#!/usr/bin/env bash
+# DevSecOps lab: preserve existing Kubernetes configuration; repair Jenkins APT key.
+set -Eeuo pipefail
+trap 'echo "ERROR line $LINENO: $BASH_COMMAND" >&2' ERR
+
+if (( EUID != 0 )); then echo 'Run with: sudo bash sc.sh' >&2; exit 1; fi
+TARGET_USER="${SUDO_USER:-devsecops}"
+[[ "$TARGET_USER" != root ]] || TARGET_USER=devsecops
+TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
+[[ -n "$TARGET_HOME" && -d "$TARGET_HOME" ]] || { echo "User $TARGET_USER not found"; exit 1; }
+export DEBIAN_FRONTEND=noninteractive
+
+banner() { echo ".........----------------#################._.-.-$1-.-._.#################----------------........."; }
+banner INSTALL
+
+# Original colored prompt, applied once to the actual login account.
+PROMPT_LINE="PS1='\\[\\e[01;36m\\]\\u\\[\\e[01;37m\\]@\\[\\e[01;33m\\]\\H\\[\\e[01;37m\\]:\\[\\e[01;32m\\]\\w\\[\\e[01;37m\\]\\$\\[\\033[0;37m\\] '"
+grep -Fqx "$PROMPT_LINE" "$TARGET_HOME/.bashrc" 2>/dev/null || printf '%s\n' "$PROMPT_LINE" >> "$TARGET_HOME/.bashrc"
+
+# Disable interactive restart prompts; retain system packages (no autoremove).
+if [[ -f /etc/needrestart/needrestart.conf ]]; then
+  sed -i "s/^#\?\(\\\$nrconf{restart} = \)'i';/\1'a';/" /etc/needrestart/needrestart.conf || true
+fi
+
+# IMPORTANT: do not run apt-get update until the old Jenkins source has been repaired.
+for command_name in curl gpg; do
+  command -v "$command_name" >/dev/null 2>&1 || { echo "Missing bootstrap tool: $command_name" >&2; exit 1; }
+done
+install -d -m 0755 /etc/apt/keyrings
+
+# Pin to the installed kubeadm minor where possible, so a rerun doesn't upgrade the cluster.
+if command -v kubeadm >/dev/null 2>&1; then
   KUBE_MINOR="$(kubeadm version -o short | cut -d. -f1,2)"
 else
   KUBE_MINOR="$(curl -fsSL https://dl.k8s.io/release/stable.txt | cut -d. -f1,2)"
@@ -136,4 +168,3 @@ banner COMPLETED
 systemctl --no-pager --full status jenkins | head -n 12 || true
 kubectl get nodes
 printf '\nJenkins initial password (keep private): sudo cat /var/lib/jenkins/secrets/initialAdminPassword\n'
-
