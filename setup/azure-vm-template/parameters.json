@@ -3,7 +3,7 @@
     "contentVersion": "1.0.0.0",
     "parameters": {
         "location": {
-            "value": "eastus"
+            "value": "francecentral"
         },
         "networkInterfaceName": {
             "value": "devsecops-cloud801"
@@ -76,7 +76,7 @@
             "value": "Static"
         },
         "publicIpAddressSku": {
-            "value": "Basic"
+            "value": "Standard"
         },
         "virtualMachineName": {
             "value": "devsecops-cloud"
@@ -85,39 +85,16 @@
             "value": "devsecops-cloud"
         },
         "virtualMachineRG": {
-            "value": "devsecops-cloud_group"
+            "value": "dev"
         },
         "osDiskType": {
             "value": "StandardSSD_LRS"
         },
         "dataDisks": {
-            "value": [
-                {
-                    "lun": 0,
-                    "createOption": "attach",
-                    "caching": "ReadOnly",
-                    "writeAcceleratorEnabled": false,
-                    "id": null,
-                    "name": "devsecops-cloud_DataDisk_0",
-                    "storageAccountType": null,
-                    "diskSizeGB": null,
-                    "diskEncryptionSet": null
-                }
-            ]
+            "value": []
         },
         "dataDiskResources": {
-            "value": [
-                {
-                    "name": "devsecops-cloud_DataDisk_0",
-                    "sku": "StandardSSD_LRS",
-                    "properties": {
-                        "diskSizeGB": 512,
-                        "creationData": {
-                            "createOption": "empty"
-                        }
-                    }
-                }
-            ]
+            "value": []
         },
         "virtualMachineSize": {
             "value": "Standard_D4s_v3"
