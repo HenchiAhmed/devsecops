@@ -22,14 +22,22 @@ pipeline {
             }
         }
         stage('Docker Build and Push') {
-            steps {
-               withDockerRegistry([credentialsId: "docker", url: ""]) {
-                 sh 'printenv'
-                 sh ' sudo docker build -t henchiahmed/numeric-app:""$GIT_COMMIT"" .'
-                 sh ' sudo docker push henchiahmed/numeric-app:""$GIT_COMMIT""'
-            }
-          }
-        }
+             steps {
+               withDockerRegistry([
+                    credentialsId: 'docker',
+                    url: 'https://index.docker.io/v1/'
+              ]) {
+                    sh 'printenv | grep -E "^GIT_COMMIT=" | cut -c1-30 || true'
 
+                    sh '''
+                        docker build \
+                            -t henchiahmed/numeric-app:${GIT_COMMIT} .
+
+                        docker push \
+                            henchiahmed/numeric-app:${GIT_COMMIT}
+            '''
+        }
+    }
+}
     }
 }
