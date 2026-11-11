@@ -8,3 +8,4 @@ slack
 sonar
 pitmutation
 kubernetes-cli
+blueocean
