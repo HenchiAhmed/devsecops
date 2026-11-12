@@ -49,14 +49,11 @@ pipeline {
     }
 }
         stage('SCM') {
-           checkout scm
+          steps {
+              sh "mvn sonar:sonar \
+                     -Dsonar.projectKey=numeric-apps \
+                     -Dsonar.host.url=http://devsecops.francecentral.cloudapp.azure.com:9000"
+                     }
         }
-        stage('SonarQube Analysis') {
-        def mvn = tool 'Default Maven';
-        withSonarQubeEnv() {
-            sh "${mvn}/bin/mvn clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=numeric-apps -Dsonar.projectName='numeric-apps'"
-    }
-  }
-}
     }
 }
