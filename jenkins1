@@ -49,11 +49,13 @@ pipeline {
     }
 }
         stage('SCM') {
-          steps {
+          steps { 
+            withSonarQubeEnv('SonarQube') {
               sh "mvn sonar:sonar \
                      -Dsonar.projectKey=numeric-apps \
                      -Dsonar.host.url=http://devsecops.francecentral.cloudapp.azure.com:9000"
                      }
+        }
         }
     }
 }
