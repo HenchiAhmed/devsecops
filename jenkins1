@@ -55,12 +55,12 @@ pipeline {
         stage('SCM') {
             steps {
                 withSonarQubeEnv('Sonar') {
-                    sh "mvn sonar:sonar \
-                         -Dsonar.projectKey=devsecops \
-                         -Dsonar.host.url=http://devsecops.francecentral.cloudapp.azure.com:9000"
-                }
-            }
+                    sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                    -Dsonar.projectKey=devsecops \
+                    -Dsonar.host.url=http://devsecops.francecentral.cloudapp.azure.com:9000"
         }
+    }
+}
     }
 }
 
