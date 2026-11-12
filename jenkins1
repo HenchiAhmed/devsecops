@@ -10,35 +10,37 @@ pipeline {
             }
         }
 
-        stage('Unit Tests - JUnit and Jacoco') {
-            steps {
-                sh "mvn test"
-            }
-            post {
-                always {
-                    junit 'target/surefire-reports/*.xml'
-                    jacoco execPattern: 'target/jacoco.exec'
-                }
-            }
-        }
-        stage('Mutation Tests - PIT') {
-            steps {
-               sh "mvn org.pitest:pitest-maven:mutationCoverage"
-           }
-            post {
-              always {
-                pitmutation  mutationStatsFile: '**/target/pit-reports/**/mutations.xml'
+          stage('Unit Tests - JUnit and Jacoco') {
+              steps {
+                  sh "mvn test"
               }
-            }           
-          }
-       stage('Docker Build and Push') {
-            steps {
-               withDockerRegistry([credentialsId: "docker-hub", url: ""]) {
-                sh 'printenv'
-                sh 'sudo docker build -t henchiahmed/numeric-app:""$GIT_COMMIT"" .'
-                sh 'docker push henchiahmed/numeric-app:""$GIT_COMMIT""'
+              post {
+                  always {
+                      junit 'target/surefire-reports/*.xml'
+                      jacoco execPattern: 'target/jacoco.exec'
+                  }
+              }
+        }
+         stage('Mutation Tests - PIT') {
+              steps {
+                 sh "mvn org.pitest:pitest-maven:mutationCoverage"
+             }
+              post {
+                always {
+                  pitmutation  mutationStatsFile: '**/target/pit-reports/**/mutations.xml'
+                }
+              }           
+            }
+         stage('Docker Build and Push') {
+              steps {
+                 withDockerRegistry([credentialsId: "docker-hub", url: ""]) {
+                  sh 'printenv'
+                  sh 'sudo docker build -t henchiahmed/numeric-app:""$GIT_COMMIT"" .'
+                  sh 'docker push henchiahmed/numeric-app:""$GIT_COMMIT""'
+              }
             }
           }
+<<<<<<< HEAD
         }
         stage('Kubernetes Deployment - DEV') {
             steps {
@@ -50,12 +52,33 @@ pipeline {
 }
         stage('SCM') {
           steps { 
-            withSonarQubeEnv('SonarQube') {
+            withSonarQubeEnv('Sonar') {
               sh "mvn sonar:sonar \
-                     -Dsonar.projectKey=numeric-apps \
+                     -Dsonar.projectKey=devsecops \
                      -Dsonar.host.url=http://devsecops.francecentral.cloudapp.azure.com:9000"
                      }
         }
         }
     }
 }
+=======
+         stage('Kubernetes Deployment - DEV') {
+             steps {
+               withKubeConfig([credentialsId: 'kube']) {
+                 sh "sed -i 's#replace#henchiahmed/numeric-app:${GIT_COMMIT}#g' k8s_deployment_service.yaml"
+                 sh "kubectl apply -f k8s_deployment_service.yaml"
+         }
+     }
+  }
+ //       stage('SCM') {
+ //         steps { 
+ //           withSonarQubeEnv('SonarQube') {
+  //            sh "mvn sonar:sonar \
+ //                    -Dsonar.projectKey=numeric-apps \
+ //                    -Dsonar.host.url=http://devsecops.francecentral.cloudapp.azure.com:9000"
+//                     }
+//        }
+//       }
+     }
+   }
+>>>>>>> 99227f1fdde51e2cad26eb9a7c191dcf305ba602
