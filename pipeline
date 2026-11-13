@@ -43,21 +43,39 @@ pipeline {
              } 
         }
     }
+
         stage('Vulnerability Scan - Dependencies') {
+            tools {
+                maven 'Maven-3.9'
+            }
+
             steps {
+                sh 'mvn -version'
+
                 withCredentials([
-                  string(
-                  credentialsId: 'nvd-api-key',
-                  variable: 'NVD_API_KEY'
-                  )
-                  ]) {
-                sh '''
-                mvn org.owasp:dependency-check-maven:13.0.0:check \
-                    -DnvdApiKeyEnvironmentVariable=NVD_API_KEY \
-                    -Dformat=XML
-                '''
+                    string(
+                        credentialsId: 'nvd-api-key',
+                        variable: 'NVD_API_KEY'
+                    )
+                ]) {
+                    sh '''
+                        mvn org.owasp:dependency-check-maven:13.0.0:check \
+                            -DnvdApiKeyEnvironmentVariable=NVD_API_KEY \
+                            -Dformat=XML
+                    '''
+                }
+            }
+
+            post {
+                always {
+                    dependencyCheckPublisher(
+                        pattern: '**/target/dependency-check-report.xml',
+                        skipNoReportFiles: true
+                    )
+                }
+            }
         }
-    }
+
 
     post {
         always {
