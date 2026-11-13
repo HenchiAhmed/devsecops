@@ -48,7 +48,7 @@ pipeline {
                 withCredentials([
                   string(
                   credentialsId: 'nvd-api-key',
-                  variable: '6A8FFE61-E66F-4D5C-B7B6-C67510978228'
+                  variable: 'NVD_API_KEY'
                   )
                   ]) {
                 sh '''
