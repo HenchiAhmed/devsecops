@@ -44,6 +44,7 @@ pipeline {
         }
     }
 
+
         stage('Vulnerability Scanning') {
             parallel {
 
@@ -82,7 +83,29 @@ pipeline {
                     steps {
                         sh 'bash trivy-docker-image-scan.sh'
                     }
+
+                    post {
+                        always {
+                            archiveArtifacts(
+                                artifacts: 'trivy-reports/*.txt',
+                                allowEmptyArchive: true
+                            )
+                        }
+                    }
                 }
+
+                stage('OPA Conftest') {
+                    steps {
+                        sh '''
+                            docker run --rm \
+                                -v "$WORKSPACE":/project \
+                                -w /project \
+                                openpolicyagent/conftest \
+                                test --policy opa-docker-security.rego Dockerfile
+                        '''
+                    }
+                }
+
             }
         }
 
