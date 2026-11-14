@@ -34,7 +34,7 @@ pipeline {
                 withSonarQubeEnv('devsecops') {
                     sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                     -Dsonar.projectKey=devsecops \
-                    -Dsonar.host.url=http://increment.francecentral.cloudapp.azure.com:9000/"
+                    -Dsonar.host.url=http://127.0.0.1:9000/"
                     }
                 timeout(time: 2, unit: 'MINUTES') {
                    script {
