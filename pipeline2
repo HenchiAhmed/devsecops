@@ -1,0 +1,109 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Build Artifact - Maven') {
+            steps {
+                sh "mvn clean package -DskipTests=true"
+                archive 'target/*.jar'
+            }
+        }
+        stage('Unit Tests - JUnit and Jacoco') {
+            steps {
+                  sh "mvn test"
+              }
+            post {
+                  always {
+                      junit 'target/surefire-reports/*.xml'
+                      jacoco execPattern: 'target/jacoco.exec'
+                  }
+              }
+        }
+        stage('Mutation Tests - PIT') {
+            steps {
+                sh "mvn org.pitest:pitest-maven:mutationCoverage"
+            }
+            post {
+                always {
+                    pitmutation mutationStatsFile: '**/target/pit-reports/**/mutations.xml'
+                }
+            }
+        }
+        stage('SCM') {
+            steps {
+                withSonarQubeEnv('devsecops') {
+                    sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                    -Dsonar.projectKey=devsecops \
+                    -Dsonar.host.url=http://127.0.0.1:9000"
+                    }
+                timeout(time: 2, unit: 'MINUTES') {
+                   script {
+                        waitForQualityGate abortPipeline: true
+                 }
+             } 
+        }
+    }
+
+        stage('Vulnerability Scanning') {
+            parallel {
+
+                stage('OWASP Dependency Check') {
+                    steps {
+                        withCredentials([
+                            string(
+                                credentialsId: 'nvd-api-key',
+                                variable: 'NVD_API_KEY'
+                            )
+                        ]) {
+                            sh '''
+                                mvn org.owasp:dependency-check-maven:12.2.2:check \
+                                    -DnvdApiKeyEnvironmentVariable=NVD_API_KEY \
+                                    -Dformat=ALL
+                            '''
+                        }
+                    }
+
+                    post {
+                        always {
+                            dependencyCheckPublisher(
+                                pattern: '**/target/dependency-check-report.xml',
+                                skipNoReportFiles: true
+                            )
+
+                            archiveArtifacts(
+                                artifacts: '**/target/dependency-check-report.*',
+                                allowEmptyArchive: true
+                            )
+                        }
+                    }
+                }
+
+                stage('Trivy Docker Image Scan') {
+                    steps {
+                        sh 'bash trivy-docker-image-scan.sh'
+                    }
+                }
+            }
+        }
+
+
+        stage('Docker Build and Push') {
+            steps {
+                withDockerRegistry([credentialsId: "docker-hub", url: ""]) {
+                    sh 'printenv'
+                    sh 'sudo docker build -t henchiahmed/numeric-app:""$GIT_COMMIT"" .'
+                    sh 'docker push henchiahmed/numeric-app:""$GIT_COMMIT""'
+                }
+            }
+        } 
+        stage('Kubernetes Deployment - DEV') {
+            steps {
+                withKubeConfig([credentialsId: 'kube']) {
+                    sh "sed -i 's#replace#henchiahmed/numeric-app:${GIT_COMMIT}#g' k8s_deployment_service.yaml"
+                    sh "kubectl apply -f k8s_deployment_service.yaml"
+                }
+            }
+        }
+
+    }
+}     
