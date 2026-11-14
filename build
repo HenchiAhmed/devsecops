@@ -28,7 +28,8 @@ pipeline {
                     pitmutation mutationStatsFile: '**/target/pit-reports/**/mutations.xml'
                 }
             }
-        }age('Docker Build and Push') {
+        }
+        stage('Docker Build and Push') {
             steps {
                 withDockerRegistry([credentialsId: "docker-hub", url: ""]) {
                     sh 'printenv'
