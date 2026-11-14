@@ -101,7 +101,7 @@ pipeline {
                                 -v "$WORKSPACE":/project \
                                 -w /project \
                                 openpolicyagent/conftest \
-                                test --policy opa-docker-security.rego Dockerfile
+                                test  --rego-version v0 --policy opa-docker-security.rego Dockerfile
                         '''
                     }
                 }
