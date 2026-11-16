@@ -33,7 +33,8 @@ pipeline {
             steps {
                 withSonarQubeEnv('devsecops') {
                     sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-                    -Dsonar.projectKey=devsecops \"
+                    -Dsonar.projectKey=devsecops \
+                    -Dsonar.host.url=http://192.168.10.6:9000/"
                     }
                 timeout(time: 2, unit: 'MINUTES') {
                    script {
