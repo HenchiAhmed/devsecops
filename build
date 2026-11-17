@@ -29,7 +29,7 @@ pipeline {
                 }
             }
         }
-        stage('SCM') {
+        stage('SAST - SonarQube') {
             steps {
                 withSonarQubeEnv('devsecops') {
                     sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
@@ -43,6 +43,70 @@ pipeline {
              } 
         }
     }
+        
+        stage('Vulnerability Scanning') {
+            parallel {
+
+                stage('OWASP Dependency Check') {
+                    steps {
+                        withCredentials([
+                            string(
+                                credentialsId: 'nvd-api-key',
+                                variable: 'NVD_API_KEY'
+                            )
+                        ]) {
+                            sh '''
+                                mvn org.owasp:dependency-check-maven:12.2.2:check \
+                                    -DnvdApiKeyEnvironmentVariable=NVD_API_KEY \
+                                    -Dformat=ALL
+                            '''
+                        }
+                    }
+
+                    post {
+                        always {
+                            dependencyCheckPublisher(
+                                pattern: '**/target/dependency-check-report.xml',
+                                skipNoReportFiles: true
+                            )
+
+                            archiveArtifacts(
+                                artifacts: '**/target/dependency-check-report.*',
+                                allowEmptyArchive: true
+                            )
+                        }
+                    }
+                }
+
+                stage('Trivy Docker Image Scan') {
+                    steps {
+                        sh 'bash trivy-docker-image-scan.sh'
+                    }
+
+                    post {
+                        always {
+                            archiveArtifacts(
+                                artifacts: 'trivy-reports/*.txt',
+                                allowEmptyArchive: true
+                            )
+                        }
+                    }
+                }
+
+                stage('OPA Conftest') {
+                    steps {
+                        sh '''
+                            docker run --rm \
+                                -v "$WORKSPACE":/project \
+                                -w /project \
+                                openpolicyagent/conftest \
+                                test  --rego-version v0 --policy opa-docker-security.rego Dockerfile
+                        '''
+                    }
+                }
+
+            }
+        }
         stage('Docker Build and Push') {
             steps {
                 withDockerRegistry([credentialsId: "docker-hub", url: ""]) {

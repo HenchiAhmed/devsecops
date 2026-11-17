@@ -29,7 +29,7 @@ pipeline {
                 }
             }
         }
-        stage('SCM') {
+        stage('SAST - SonarQube') {
             steps {
                 withSonarQubeEnv('devsecops') {
                     sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
@@ -68,7 +68,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Docker Build and Push') {
             steps {
                 withDockerRegistry([credentialsId: "docker-hub", url: ""]) {
