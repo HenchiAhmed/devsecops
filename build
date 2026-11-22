@@ -194,7 +194,7 @@ pipeline {
             }
         }
 
-    } // FIN stages - accolade manquante corrigee
+    } // 
 
     post {
         always {
@@ -216,7 +216,7 @@ pipeline {
                 reportTitles: 'OWASP ZAP HTML Report'
             ])
 
-            // sendNotification currentBuild.result
+               sendNotification currentBuild.result
         }
     }
 }
