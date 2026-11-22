@@ -161,11 +161,12 @@ pipeline {
         stage('Docker Build and Push') {
             steps {
                 withDockerRegistry([
-                    credentialsId: 'docker-hub',
-                    url: ''
+                    credentialsId: "docker-hub",
+                    url: ""
                 ]) {
-                    sh 'docker build -t "$imageName" .'
-                    sh 'docker push "$imageName"'
+                    sh 'printenv'
+                    sh 'docker build -t henchiahmed/numeric-app:""$GIT_COMMIT"" .'
+                    sh 'docker push henchiahmed/numeric-app:""$GIT_COMMIT""'
                 }
             }
         }
