@@ -1,37 +1,46 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-#integration-test.sh
+: "${serviceName:?serviceName manquant}"
+: "${applicationURL:?applicationURL manquante}"
+: "${applicationURI:?applicationURI manquante}"
 
-sleep 5s
+PORT=$(kubectl -n default get svc "$serviceName" \
+  -o jsonpath='{.spec.ports[0].nodePort}')
 
-PORT=$(kubectl -n default get svc ${serviceName} -o json | jq .spec.ports[].nodePort)
+if [[ -z "$PORT" ]]; then
+    echo "ERROR: Service without NodePort"
+    exit 1
+fi
 
-echo $PORT
-echo $applicationURL:$PORT/$applicationURI
+URL="${applicationURL}:${PORT}/${applicationURI#/}"
 
-if [[ ! -z "$PORT" ]];
-then
+echo "Testing URL: $URL"
 
-    response=$(curl -s $applicationURL:$PORT$applicationURI)
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" $applicationURL:$PORT$applicationURI)
+for attempt in $(seq 1 12); do
 
-    if [[ "$response" == 100 ]];
-        then
-            echo "Increment Test Passed"
-        else
-            echo "Increment Test Failed"
-            exit 1;
-    fi;
+    BODY_FILE=$(mktemp)
 
-    if [[ "$http_code" == 200 ]];
-        then
-            echo "HTTP Status Code Test Passed"
-        else
-            echo "HTTP Status code is not 200"
-            exit 1;
-    fi;
+    HTTP_CODE=$(curl -sS \
+        --connect-timeout 5 \
+        --max-time 10 \
+        -o "$BODY_FILE" \
+        -w '%{http_code}' \
+        "$URL") || HTTP_CODE="000"
 
-else
-        echo "The Service does not have a NodePort"
-        exit 1;
-fi;
+    RESPONSE=$(cat "$BODY_FILE")
+    rm -f "$BODY_FILE"
+
+    echo "Attempt $attempt: HTTP=$HTTP_CODE Response=[$RESPONSE]"
+
+    if [[ "$HTTP_CODE" == "200" && "$RESPONSE" == "100" ]]; then
+        echo "Increment Test Passed"
+        echo "HTTP Status Code Test Passed"
+        exit 0
+    fi
+
+    sleep 5
+done
+
+echo "ERROR: Integration test failed after 12 attempts"
+exit 1
