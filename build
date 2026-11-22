@@ -1,5 +1,5 @@
-@Library('slack') _
 
+@Library('slack') _
 
 pipeline {
     agent any
@@ -9,9 +9,9 @@ pipeline {
         containerName = "devsecops-container"
         serviceName = "devsecops-svc"
         imageName = "henchiahmed/numeric-app:${GIT_COMMIT}"
-        applicationURL="http://192.168.10.111"
-        applicationURI="increment/99"
-      }
+        applicationURL = "http://192.168.10.111"
+        applicationURI = "increment/99"
+    }
 
     stages {
         stage('Build Artifact - Maven') {
@@ -20,17 +20,19 @@ pipeline {
                 archive 'target/*.jar'
             }
         }
+
         stage('Unit Tests - JUnit and Jacoco') {
             steps {
-                  sh "mvn test"
-              }
+                sh "mvn test"
+            }
             post {
-                  always {
-                      junit 'target/surefire-reports/*.xml'
-                      jacoco execPattern: 'target/jacoco.exec'
-                  }
-              }
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                    jacoco execPattern: 'target/jacoco.exec'
+                }
+            }
         }
+
         stage('Mutation Tests - PIT') {
             steps {
                 sh "mvn org.pitest:pitest-maven:mutationCoverage"
@@ -41,21 +43,22 @@ pipeline {
                 }
             }
         }
+
         stage('SAST - SonarQube') {
             steps {
                 withSonarQubeEnv('devsecops') {
                     sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                     -Dsonar.projectKey=devsecops \
                     -Dsonar.host.url=http://192.168.10.111:9000/"
-                    }
+                }
                 timeout(time: 2, unit: 'MINUTES') {
-                   script {
+                    script {
                         waitForQualityGate abortPipeline: true
-                 }
-             } 
+                    }
+                }
+            }
         }
-    }
-        
+
         stage('Vulnerability Scanning') {
             parallel {
 
@@ -112,13 +115,14 @@ pipeline {
                                 -v "$WORKSPACE":/project \
                                 -w /project \
                                 openpolicyagent/conftest \
-                                test  --rego-version v0 --policy opa-docker-security.rego Dockerfile
+                                test --rego-version v0 --policy opa-docker-security.rego Dockerfile
                         '''
                     }
                 }
 
             }
         }
+
         stage('Docker Build and Push') {
             steps {
                 withDockerRegistry([credentialsId: "docker-hub", url: ""]) {
@@ -127,22 +131,23 @@ pipeline {
                     sh 'docker push henchiahmed/numeric-app:""$GIT_COMMIT""'
                 }
             }
-        } 
+        }
+
         stage('Vulnerability Scan - Kubernetes') {
             steps {
-            parallel(
-             "OPA Scan": {
-                sh 'docker run --rm -v $(pwd):/project openpolicyagent/conftest test --rego-version v0 --policy opa-k8s-security.rego k8s_deployment_service.yaml'
-              },
-             "Kubesec Scan": {
-                sh "bash kubesec-scan.sh"
-              },
-             "Trivy Scan": {
-                sh "bash trivy-k8s-scan.sh"
-             }
-           )
-         }
-       }
+                parallel(
+                    "OPA Scan": {
+                        sh 'docker run --rm -v $(pwd):/project openpolicyagent/conftest test --rego-version v0 --policy opa-k8s-security.rego k8s_deployment_service.yaml'
+                    },
+                    "Kubesec Scan": {
+                        sh "bash kubesec-scan.sh"
+                    },
+                    "Trivy Scan": {
+                        sh "bash trivy-k8s-scan.sh"
+                    }
+                )
+            }
+        }
 
         stage('Kubernetes Deployment - DEV') {
             steps {
@@ -152,23 +157,25 @@ pipeline {
                 }
             }
         }
+
         stage('Integration Tests - DEV') {
             steps {
-              script {
-                try {
-                  withKubeConfig([credentialsId: 'kubeconfig']) {
-                  sh "bash integration-test.sh"
-                   }
-                } 
-                catch (e) {
-                withKubeConfig([credentialsId: 'kubeconfig']) {
-                 sh "kubectl -n default rollout undo deploy ${deploymentName}"
-               }
-                throw e
-             }
-           }
-         }
-       }
+                script {
+                    try {
+                        withKubeConfig([credentialsId: 'kubeconfig']) {
+                            sh "bash integration-test.sh"
+                        }
+                    }
+                    catch (e) {
+                        withKubeConfig([credentialsId: 'kubeconfig']) {
+                            sh "kubectl -n default rollout undo deploy ${deploymentName}"
+                        }
+                        throw e
+                    }
+                }
+            }
+        }
+
         stage('OWASP ZAP - DAST') {
             steps {
                 withKubeConfig([credentialsId: 'kubeconfig']) {
@@ -185,7 +192,9 @@ pipeline {
                     )
                 }
             }
-    }
+        }
+
+    } // FIN stages - accolade manquante corrigee
 
     post {
         always {
