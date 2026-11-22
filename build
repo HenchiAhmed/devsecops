@@ -185,7 +185,7 @@ pipeline {
                     )
                 }
             }
-    } // FIN stages
+    }
 
     post {
         always {
@@ -210,5 +210,4 @@ pipeline {
             // sendNotification currentBuild.result
         }
     }
-
-} 
+}
