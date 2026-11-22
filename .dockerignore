@@ -1,0 +1,12 @@
+# Trivy cache and reports
+.trivy-cache/
+**/.trivy-cache/
+trivy-input.*/
+trivy-reports/
+
+# OWASP ZAP
+.zap-work-*/
+owasp-zap-report/
+
+# Git
+.git/
