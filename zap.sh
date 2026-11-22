@@ -8,37 +8,37 @@ RULES="zap_rules"
 
 echo "========== OWASP ZAP API SCAN =========="
 
-# 1. Verification des outils
+# 1. Verify dependencies
 for cmd in docker kubectl curl; do
-    command -v "$cmd" >/dev/null || {
-        echo "ERROR: $cmd not installed"
+    command -v "$cmd" >/dev/null 2>&1 || {
+        echo "ERROR: Missing command: $cmd"
         exit 1
     }
 done
 
-# 2. Recuperer le NodePort Kubernetes
+# 2. Get Kubernetes NodePort
 PORT=$(kubectl -n default get svc "$SERVICE" \
     -o jsonpath='{.spec.ports[0].nodePort}')
 
-if [[ -z "$PORT" ]]; then
-    echo "ERROR: NodePort not found"
+if [[ ! "$PORT" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: Invalid or missing NodePort"
     exit 1
 fi
 
 TARGET="${APP_URL%/}:${PORT}/v3/api-docs"
 
 echo "Service: $SERVICE"
-echo "Port: $PORT"
+echo "NodePort: $PORT"
 echo "Target: $TARGET"
 echo "Image: $IMAGE"
 
-# 3. Verifier les regles ZAP
+# 3. Verify custom ZAP rules
 if [[ ! -f "$RULES" ]]; then
     echo "ERROR: Missing rules file: $RULES"
     exit 1
 fi
 
-# 4. Verifier OpenAPI
+# 4. Verify OpenAPI endpoint
 echo "========== CHECK OPENAPI =========="
 
 HTTP_CODE=$(curl -sS \
@@ -58,25 +58,27 @@ if [[ "$HTTP_CODE" != "200" ]]; then
     exit 1
 fi
 
-# 5. Preparer les rapports
-mkdir -p owasp-zap-report
+# 5. Prepare report directory
+REPORT_DIR="$PWD/owasp-zap-report"
+mkdir -p "$REPORT_DIR"
 
-# Repertoire temporaire dedie au conteneur ZAP
-# Ne pas modifier les permissions du workspace entier.
+# Temporary working directory for the default ZAP user
 ZAP_WORK=$(mktemp -d "$PWD/.zap-work-XXXXXX")
-chmod 777 "$ZAP_WORK"
 
-cp "$RULES" "$ZAP_WORK/zap_rules"
-chmod 644 "$ZAP_WORK/zap_rules"
+# Only this temporary directory is writable by the
+# container user, never the whole Jenkins workspace.
+chmod 0777 "$ZAP_WORK"
 
 cleanup() {
-    rm -f "$ZAP_WORK/zap_rules"
-    rmdir "$ZAP_WORK" 2>/dev/null || true
+    rm -rf -- "$ZAP_WORK"
 }
 trap cleanup EXIT
 
-# 6. Executer OWASP ZAP
-echo "========== START ZAP =========="
+cp "$RULES" "$ZAP_WORK/zap_rules"
+chmod 0644 "$ZAP_WORK/zap_rules"
+
+# 6. Run ZAP API Scan
+echo "========== START OWASP ZAP =========="
 
 set +e
 
@@ -93,14 +95,22 @@ docker run --rm \
             -r zap_report.html \
             -J zap_report.json \
             -T 10 \
+            -z "-silent" \
             -d
 
         RC=$?
 
         echo "========== ZAP INTERNAL LOG =========="
-        if [ -f /home/zap/.ZAP/zap.log ]; then
-            tail -n 80 /home/zap/.ZAP/zap.log
-        fi
+
+        for LOG in \
+            /home/zap/.ZAP/zap.log \
+            /home/zap/.ZAP_D/zap.log
+        do
+            if [ -f "$LOG" ]; then
+                echo "=== $LOG ==="
+                tail -n 80 "$LOG"
+            fi
+        done
 
         exit "$RC"
     ' _ "$TARGET"
@@ -109,18 +119,17 @@ EXIT_CODE=$?
 
 set -e
 
-# 7. Recuperer les rapports
+# 7. Save generated reports
 echo "========== SAVE REPORTS =========="
 
-for report in zap_report.html zap_report.json; do
-    if [[ -f "$ZAP_WORK/$report" ]]; then
-        mv -f "$ZAP_WORK/$report" \
-            "owasp-zap-report/$report"
-        echo "Saved: owasp-zap-report/$report"
+for REPORT in zap_report.html zap_report.json; do
+    if [[ -f "$ZAP_WORK/$REPORT" ]]; then
+        mv -f "$ZAP_WORK/$REPORT" "$REPORT_DIR/$REPORT"
+        echo "Saved: owasp-zap-report/$REPORT"
     fi
 done
 
-# 8. Resultat
+# 8. Report scan result
 echo "========== ZAP RESULT =========="
 echo "Exit Code: $EXIT_CODE"
 
@@ -130,11 +139,11 @@ case "$EXIT_CODE" in
         exit 0
         ;;
     1)
-        echo "FAIL: Security vulnerabilities classified FAIL"
+        echo "FAIL: Security findings classified FAIL"
         exit 1
         ;;
     2)
-        echo "WARNING: Security alerts detected"
+        echo "WARNING: Security findings classified WARN"
         echo "Continuing pipeline according to lab policy"
         exit 0
         ;;
