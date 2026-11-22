@@ -58,15 +58,14 @@ if [[ "$HTTP_CODE" != "200" ]]; then
     exit 1
 fi
 
-# 5. Prepare report directory
+# 5. Prepare reports
 REPORT_DIR="$PWD/owasp-zap-report"
 mkdir -p "$REPORT_DIR"
 
-# Temporary working directory for the default ZAP user
+# Temporary directory dedicated to ZAP
 ZAP_WORK=$(mktemp -d "$PWD/.zap-work-XXXXXX")
 
-# Only this temporary directory is writable by the
-# container user, never the whole Jenkins workspace.
+# Limit permissions modification to this temporary directory
 chmod 0777 "$ZAP_WORK"
 
 cleanup() {
@@ -77,14 +76,19 @@ trap cleanup EXIT
 cp "$RULES" "$ZAP_WORK/zap_rules"
 chmod 0644 "$ZAP_WORK/zap_rules"
 
-# 6. Run ZAP API Scan
+# 6. Run ZAP with controlled memory
 echo "========== START OWASP ZAP =========="
+echo "Docker memory: 8 GB"
+echo "Java max heap: 3 GB"
+echo "Shared memory: 1 GB"
 
 set +e
 
 docker run --rm \
-    --memory=4g \
-    -e JAVA_OPTS="-Xmx2g" \
+    --memory=8g \
+    --memory-swap=8g \
+    --shm-size=1g \
+    -e _JAVA_OPTIONS="-Xms256m -Xmx3g" \
     -v "$ZAP_WORK:/zap/wrk:rw" \
     "$IMAGE" \
     bash -c '
@@ -108,7 +112,7 @@ docker run --rm \
         do
             if [ -f "$LOG" ]; then
                 echo "=== $LOG ==="
-                tail -n 80 "$LOG"
+                tail -n 100 "$LOG"
             fi
         done
 
@@ -119,7 +123,7 @@ EXIT_CODE=$?
 
 set -e
 
-# 7. Save generated reports
+# 7. Save reports
 echo "========== SAVE REPORTS =========="
 
 for REPORT in zap_report.html zap_report.json; do
@@ -129,7 +133,7 @@ for REPORT in zap_report.html zap_report.json; do
     fi
 done
 
-# 8. Report scan result
+# 8. Final result
 echo "========== ZAP RESULT =========="
 echo "Exit Code: $EXIT_CODE"
 
