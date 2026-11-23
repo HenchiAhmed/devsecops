@@ -1,39 +1,66 @@
-#!/bin/bash
-sleep 5s
 
-# echo "ok"
-# PORT=$(kubectl get svc ${serviceName} -o json | jq .spec.ports[].nodePort)
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-### Istio Ingress Gateway Port 80 - NodePort
-PORT=$(kubectl -n istio-system get svc istio-ingressgateway -o json | jq '.spec.ports[] | select(.port == 80)' | jq .nodePort)
+# Configuration
+APP_URL="${applicationURL:-http://192.168.10.111}"
+APP_URI="${applicationURI:-/increment/99}"
 
+echo "========== PROD INTEGRATION TEST =========="
 
-echo $PORT
-echo $applicationURL:$PORT$applicationURI
+# Recuperer le NodePort HTTP de Istio Ingress Gateway
+PORT=$(kubectl -n istio-system get svc istio-ingressgateway \
+    -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}')
 
-if [[ ! -z "$PORT" ]];
-then
+if [[ ! "$PORT" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: Istio Ingress Gateway NodePort not found"
+    exit 1
+fi
 
-    response=$(curl -s $applicationURL:$PORT$applicationURI)
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" $applicationURL:$PORT$applicationURI)
+TARGET="${APP_URL%/}:${PORT}/${APP_URI#/}"
 
-    if [[ "$response" == 100 ]];
-        then
-            echo "Increment Test Passed"
-        else
-            echo "Increment Test Failed"
-            exit 1;
-    fi;
+echo "NodePort: $PORT"
+echo "Target: $TARGET"
 
-    if [[ "$http_code" == 200 ]];
-        then
-            echo "HTTP Status Code Test Passed"
-        else
-            echo "HTTP Status code is not 200"
-            exit 1;
-    fi;
+# Attendre que l'application soit disponible
+sleep 5
 
-else
-        echo "The Service does not have a NodePort"
-        exit 1;
-fi;
+# Tester jusqu'a 5 fois
+for ATTEMPT in 1 2 3 4 5; do
+
+    echo "========== ATTEMPT $ATTEMPT/5 =========="
+
+    BODY_FILE=$(mktemp)
+
+    HTTP_CODE=$(curl -sS \
+        --connect-timeout 5 \
+        --max-time 15 \
+        -o "$BODY_FILE" \
+        -w '%{http_code}' \
+        "$TARGET") || HTTP_CODE="000"
+
+    RESPONSE=$(cat "$BODY_FILE")
+    rm -f "$BODY_FILE"
+
+    echo "HTTP Status: $HTTP_CODE"
+    echo "Response: [$RESPONSE]"
+
+    # Verifier reponse et statut HTTP
+    if [[ "$RESPONSE" == "100" && "$HTTP_CODE" == "200" ]]; then
+        echo "Increment Test Passed"
+        echo "HTTP Status Code Test Passed"
+        exit 0
+    fi
+
+    echo "Test failed - retrying..."
+
+    if [[ "$ATTEMPT" -lt 5 ]]; then
+        sleep 5
+    fi
+
+done
+
+echo "========== PROD TEST FAILED =========="
+echo "Check Istio Gateway, VirtualService and PROD services"
+
+exit 1
